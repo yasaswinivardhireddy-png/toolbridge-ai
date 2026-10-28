@@ -22,6 +22,7 @@ export interface AgentGateway {
 export async function runAgent(options: {
   client: OpenAI;
   model: string;
+  reasoningEffort?: OpenAI.Chat.Completions.ChatCompletionReasoningEffort;
   gateway: AgentGateway;
   approvals: Approvals;
   owner: string;
@@ -30,7 +31,7 @@ export async function runAgent(options: {
   emit: (event: RunEvent) => void;
   signal: AbortSignal;
 }): Promise<{ messages: Message[]; inputTokens: number; outputTokens: number }> {
-  const { client, model, gateway, approvals, owner, emit, signal } = options;
+  const { client, model, reasoningEffort, gateway, approvals, owner, emit, signal } = options;
   const history: Message[] = [...options.history, { role: "user", content: options.prompt }];
   if (JSON.stringify(history).length > 120_000) {
     throw new Error("Conversation is too long. Start a new conversation.");
@@ -45,7 +46,8 @@ export async function runAgent(options: {
       tools: gateway.modelTools(),
       stream: true,
       stream_options: { include_usage: true },
-      max_completion_tokens: 2000
+      max_completion_tokens: 2000,
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {})
     }, { signal });
     let content = "";
     let finishReason: string | null = null;

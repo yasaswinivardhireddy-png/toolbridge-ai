@@ -46,7 +46,8 @@ configuration; web search explicitly reports a missing search key.
 | Variable | Purpose |
 |---|---|
 | `OPENAI_API_KEY` | Required for chat; stays on the backend |
-| `OPENAI_MODEL` | Default `gpt-4.1-mini`; use a tool-capable model |
+| `OPENAI_MODEL` | Default `gpt-6-luna`; use a tool-capable model |
+| `OPENAI_REASONING_EFFORT` | Sent as `reasoning_effort`; defaults to `none` for `gpt-6-luna`, which requires it for Chat Completions tool calls. Set empty to omit |
 | `OPENAI_BASE_URL` | Optional trusted OpenAI-compatible endpoint |
 | `BRAVE_SEARCH_API_KEY` | Required only for web search |
 | `GITHUB_TOKEN` | Optional read-only token for higher public API rate limits |

@@ -15,10 +15,12 @@ test("production HTTP host streams real MCP actions, gates writes, and persists 
       await cleanup();
     }
   });
+  const modelRequests = [];
   const model = createServer(async (request, response) => {
     let text = "";
     for await (const chunk of request) { text += chunk; }
     const body = JSON.parse(text);
+    modelRequests.push({ model: body.model, reasoningEffort: body.reasoning_effort });
     const user = body.messages.findLast(message => message.role === "user").content;
     const isToolResult = body.messages.at(-1).role === "tool";
     const delta = isToolResult ? { content: "The requested action has been processed." } : {
@@ -44,14 +46,15 @@ test("production HTTP host streams real MCP actions, gates writes, and persists 
   await new Promise(resolve => reservation.listen(0, "127.0.0.1", resolve));
   const port = reservation.address().port;
   await new Promise(resolve => reservation.close(resolve));
-  const app = spawn(process.execPath, ["dist/server/index.js"], {
-    cwd: process.cwd(),
+  // Run from the temporary directory so a developer's local .env is never loaded.
+  const app = spawn(process.execPath, [path.resolve("dist/server/index.js")], {
+    cwd: directory,
     env: {
       ...process.env,
       PORT: String(port), TOOLBRIDGE_HOME: directory,
       OPENAI_API_KEY: "local-test-placeholder",
       OPENAI_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
-      OPENAI_MODEL: "test", BRAVE_SEARCH_API_KEY: "", GITHUB_TOKEN: ""
+      OPENAI_MODEL: "", OPENAI_REASONING_EFFORT: undefined, BRAVE_SEARCH_API_KEY: "", GITHUB_TOKEN: ""
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -149,4 +152,6 @@ test("production HTTP host streams real MCP actions, gates writes, and persists 
   await assert.rejects(readFile(path.join(directory, "workspace", "denied.txt")), { code: "ENOENT" });
   const conversations = await (await fetch(`${base}/api/conversations`, { headers })).json();
   assert.equal(conversations.length, 2);
+  assert.equal(config.model, "gpt-6-luna");
+  assert.deepEqual(modelRequests, Array(4).fill({ model: "gpt-6-luna", reasoningEffort: "none" }));
 });

@@ -29,6 +29,11 @@ try {
 const approvals = new Approvals();
 const token = randomBytes(32).toString("hex");
 const port = z.coerce.number().int().min(1024).max(65535).parse(process.env.PORT ?? 4317);
+const DEFAULT_MODEL = "gpt-6-luna";
+const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
+// gpt-6-luna supports Chat Completions function calling only with reasoning disabled.
+const reasoningEffort = z.enum(["", "none", "minimal", "low", "medium", "high", "xhigh", "max"])
+  .parse(process.env.OPENAI_REASONING_EFFORT ?? (model === DEFAULT_MODEL ? "none" : "")) || undefined;
 const client = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.OPENAI_BASE_URL || undefined,
@@ -102,7 +107,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
       json(response, 200, {
         modelConfigured: Boolean(client),
         searchConfigured: Boolean(process.env.BRAVE_SEARCH_API_KEY),
-        model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+        model,
         tools: gateway.catalog().map(tool => ({ name: tool.name, description: tool.description, requiresApproval: gateway.requiresApproval(tool.name) }))
       });
       return;
@@ -173,7 +178,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
       emit({ type: "run", conversationId: id });
       try {
         const result = await runAgent({
-          client, model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+          client, model, reasoningEffort,
           gateway, approvals, owner: token, history, prompt: input.prompt, emit, signal: controller.signal
         });
         store.save(id, result.messages);

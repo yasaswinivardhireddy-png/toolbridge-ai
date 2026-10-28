@@ -75,6 +75,7 @@ test("model selects a real MCP tool and receives its result before final text", 
   });
   assert.equal(requests.length, 2);
   assert.equal(requests[0].tools.length, 5);
+  assert.equal("reasoning_effort" in requests[0], false);
   assert.equal(requests[1].messages.at(-1).role, "tool");
   assert.match(requests[1].messages.at(-1).content, /entries/);
   assert.equal(result.messages.at(-1).content, "The workspace is empty.");
@@ -82,6 +83,16 @@ test("model selects a real MCP tool and receives its result before final text", 
   assert.equal(result.outputTokens, 10);
   assert.ok(events.some(event => event.type === "tool_end" && !event.isError));
   assert.ok(events.some(event => event.type === "text"));
+});
+
+test("configured reasoning effort is forwarded with every model request", async t => {
+  const { gateway } = await gatewayFixture(t);
+  const { client, requests } = await modelFixture(t, [call("workspace_list", {}), { delta: { content: "Done." } }]);
+  await runAgent({
+    client, model: "test-model", reasoningEffort: "none", gateway, approvals: new Approvals(), owner: "owner",
+    history: [], prompt: "List", emit: () => {}, signal: new AbortController().signal
+  });
+  assert.deepEqual(requests.map(request => request.reasoning_effort), ["none", "none"]);
 });
 
 for (const approved of [true, false]) {
