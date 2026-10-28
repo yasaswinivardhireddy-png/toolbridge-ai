@@ -59,6 +59,13 @@ chunks, and `max_completion_tokens`. Compatibility with arbitrary providers is
 not guaranteed. The configured API key is sent to `OPENAI_BASE_URL`; only use a
 provider you trust. Model and search providers may charge for requests.
 
+**Free option:** Google Gemini's free tier works through its OpenAI-compatible
+endpoint; `.env.example` contains the settings. On the free tier, Google may use
+prompts to improve its products, so use it only with non-sensitive data. Gemini
+returns provider-specific fields (thought signatures) with tool calls; the agent
+sends them back unchanged, as Gemini requires. Free models can be temporarily
+overloaded (HTTP 503); retry later or choose another available model.
+
 ### Try these prompts
 
 1. "Find public GitHub repositories about MCP agents in TypeScript. Compare their

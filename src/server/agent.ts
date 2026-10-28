@@ -19,6 +19,13 @@ export interface AgentGateway {
   call: Gateway["call"];
 }
 
+interface StreamedToolCall {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+  [providerField: string]: unknown;
+}
+
 export async function runAgent(options: {
   client: OpenAI;
   model: string;
@@ -51,7 +58,8 @@ export async function runAgent(options: {
     }, { signal });
     let content = "";
     let finishReason: string | null = null;
-    const calls = new Map<number, { id: string; type: "function"; function: { name: string; arguments: string } }>();
+    const calls = new Map<number, StreamedToolCall>();
+    let lastKey = 0;
     for await (const chunk of stream) {
       if (chunk.usage) {
         inputTokens += chunk.usage.prompt_tokens;
@@ -66,14 +74,21 @@ export async function runAgent(options: {
         emit({ type: "text", text: choice.delta.content });
       }
       for (const delta of choice?.delta.tool_calls ?? []) {
-        const call = calls.get(delta.index) ?? { id: "", type: "function", function: { name: "", arguments: "" } };
-        call.id += delta.id ?? "";
-        call.function.name += delta.function?.name ?? "";
-        call.function.arguments += delta.function?.arguments ?? "";
+        // Some OpenAI-compatible providers, such as Gemini, omit index and send each call whole.
+        const key = typeof delta.index === "number" ? delta.index
+          : delta.id && calls.get(lastKey)?.id !== delta.id ? calls.size : lastKey;
+        const { index: _index, id, type: _type, function: fn, ...extra } = delta as typeof delta & Record<string, unknown>;
+        const call: StreamedToolCall = calls.get(key) ?? { id: "", type: "function", function: { name: "", arguments: "" } };
+        // Provider-specific fields, such as Gemini thought signatures, must be returned unchanged.
+        Object.assign(call, extra);
+        call.id ||= id ?? "";
+        call.function.name ||= fn?.name ?? "";
+        call.function.arguments += fn?.arguments ?? "";
         if (call.function.arguments.length > 100_000 || calls.size > 10) {
           throw new Error("Model tool request exceeds the safety limit.");
         }
-        calls.set(delta.index, call);
+        calls.set(key, call);
+        lastKey = key;
       }
     }
     if (finishReason !== "stop" && finishReason !== "tool_calls") {

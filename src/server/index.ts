@@ -10,6 +10,7 @@ import { Gateway } from "../mcp/gateway.js";
 import type { RunEvent } from "../shared.js";
 import { runAgent } from "./agent.js";
 import { Approvals } from "./approvals.js";
+import { describeRunError } from "./errors.js";
 import { ConversationNotFound, Store } from "./store.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -185,11 +186,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
         emit({ type: "done", inputTokens: result.inputTokens, outputTokens: result.outputTokens });
       } catch (error) {
         console.error("Agent run failed:", error instanceof Error ? error.name : "UnknownError");
-        emit({ type: "error", message: controller.signal.aborted
-          ? "Run stopped or timed out. Approved file actions are not rolled back."
-          : error instanceof OpenAI.APIError
-            ? `Model provider request failed (HTTP ${error.status ?? "unknown"}). Check your key, model, billing, and provider URL.`
-            : error instanceof Error ? error.message : "Agent run failed." });
+        emit({ type: "error", message: describeRunError(error, controller.signal.aborted) });
       } finally {
         clearTimeout(timeout);
         active.delete(id);

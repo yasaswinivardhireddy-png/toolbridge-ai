@@ -8,6 +8,7 @@ import OpenAI from "openai";
 import { Gateway } from "../src/mcp/gateway.ts";
 import { runAgent } from "../src/server/agent.ts";
 import { Approvals } from "../src/server/approvals.ts";
+import { describeRunError } from "../src/server/errors.ts";
 import { searchGithub, searchWeb } from "../src/tools/remote.ts";
 
 const originalFetch = globalThis.fetch;
@@ -34,8 +35,11 @@ async function modelFixture(t, turns) {
     const chunk = delta => `data: ${JSON.stringify({
       id: "chat-test", object: "chat.completion.chunk", created: 0, model: "test-model", ...delta
     })}\n\n`;
-    response.write(chunk({ choices: [{ index: 0, delta: turn.delta, finish_reason: null }] }));
-    response.write(chunk({ choices: [{ index: 0, delta: {}, finish_reason: turn.finish ?? (turn.delta.tool_calls ? "tool_calls" : "stop") }] }));
+    const deltas = turn.deltas ?? [turn.delta];
+    for (const delta of deltas) {
+      response.write(chunk({ choices: [{ index: 0, delta, finish_reason: null }] }));
+    }
+    response.write(chunk({ choices: [{ index: 0, delta: {}, finish_reason: turn.finish ?? (deltas.some(delta => delta.tool_calls) ? "tool_calls" : "stop") }] }));
     response.write(chunk({ choices: [], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }));
     response.end("data: [DONE]\n\n");
   });
@@ -93,6 +97,60 @@ test("configured reasoning effort is forwarded with every model request", async 
     history: [], prompt: "List", emit: () => {}, signal: new AbortController().signal
   });
   assert.deepEqual(requests.map(request => request.reasoning_effort), ["none", "none"]);
+});
+
+test("provider tool-call fields are preserved and index-less calls stay separate", async t => {
+  const { gateway } = await gatewayFixture(t);
+  const signature = { google: { thought_signature: "opaque-signature" } };
+  const { client, requests } = await modelFixture(t, [
+    { finish: "stop", deltas: [
+      { tool_calls: [{ id: "call_a", type: "function", extra_content: signature, function: { name: "workspace_list", arguments: "{}" } }] },
+      { tool_calls: [{ id: "call_b", type: "function", function: { name: "workspace_read", arguments: "{\"path\":\"missing.txt\"}" } }] }
+    ] },
+    { delta: { content: "Done." } }
+  ]);
+  const events = [];
+  await runAgent({
+    client, model: "test-model", gateway, approvals: new Approvals(), owner: "owner",
+    history: [], prompt: "Inspect", emit: event => events.push(event), signal: new AbortController().signal
+  });
+  const assistant = requests[1].messages.find(message => message.role === "assistant");
+  assert.deepEqual(assistant.tool_calls.map(toolCall => toolCall.id), ["call_a", "call_b"]);
+  assert.deepEqual(assistant.tool_calls[0].extra_content, signature);
+  assert.deepEqual(requests[1].messages.filter(message => message.role === "tool").map(message => message.tool_call_id), ["call_a", "call_b"]);
+  assert.deepEqual(events.filter(event => event.type === "tool_end").map(event => event.name), ["workspace_list", "workspace_read"]);
+});
+
+test("tool arguments streamed across chunks are reassembled without extra fields", async t => {
+  const { gateway } = await gatewayFixture(t);
+  const { client, requests } = await modelFixture(t, [
+    { deltas: [
+      { tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "workspace_list", arguments: "" } }] },
+      { tool_calls: [{ index: 0, function: { arguments: "{\"path\":" } }] },
+      { tool_calls: [{ index: 0, function: { arguments: "\".\"}" } }] }
+    ] },
+    { delta: { content: "Listed." } }
+  ]);
+  await runAgent({
+    client, model: "test-model", gateway, approvals: new Approvals(), owner: "owner",
+    history: [], prompt: "List", emit: () => {}, signal: new AbortController().signal
+  });
+  const assistant = requests[1].messages.find(message => message.role === "assistant");
+  assert.deepEqual(assistant.tool_calls, [
+    { id: "call_1", type: "function", function: { name: "workspace_list", arguments: "{\"path\":\".\"}" } }
+  ]);
+});
+
+test("provider failures produce actionable messages", () => {
+  const apiError = status => OpenAI.APIError.generate(status, undefined, "failed", new Headers());
+  assert.match(describeRunError(apiError(401), false), /HTTP 401.*OPENAI_API_KEY/);
+  assert.match(describeRunError(apiError(404), false), /HTTP 404.*OPENAI_MODEL/);
+  assert.match(describeRunError(apiError(429), false), /HTTP 429.*Rate limit/);
+  assert.match(describeRunError(apiError(503), false), /HTTP 503.*overloaded/);
+  assert.match(describeRunError(new OpenAI.APIConnectionTimeoutError(), false), /did not respond in time/);
+  assert.match(describeRunError(new OpenAI.APIConnectionError({ message: "offline" }), false), /Could not reach/);
+  assert.match(describeRunError(apiError(503), true), /Run stopped/);
+  assert.equal(describeRunError(new Error("Tool budget reached."), false), "Tool budget reached.");
 });
 
 for (const approved of [true, false]) {
