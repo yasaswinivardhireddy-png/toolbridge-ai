@@ -6,6 +6,20 @@ workspace files, and public GitHub APIs through a single chat interface.
 **Status:** portfolio MVP, not a production multi-user service. This is an
 original application built on the official MCP SDK, not a renamed fork.
 
+## Demo
+
+**Dynamic tool use:** the model discovers the MCP tools, chooses `github_search`,
+and answers with real repositories. The timeline shows each tool call and its duration.
+
+![ToolBridge AI answering a GitHub question with the github_search MCP tool](docs/images/demo-github-search.png)
+
+**Human approval:** before a file is created, the run pauses and shows the exact
+path and content in the conversation.
+
+![ToolBridge AI asking for approval before creating mcp-notes.txt](docs/images/demo-approval.png)
+
+*Live runs with Google Gemini (`gemini-3.5-flash`, free tier); GitHub results reflect the time of capture.*
+
 ## What makes it different from a chat wrapper?
 
 - **Real MCP:** a host starts a separate stdio tool server, negotiates a connection,

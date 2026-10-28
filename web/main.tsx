@@ -200,6 +200,13 @@ function App() {
           <div className="message-content">{message.content}</div>
         </article>)}
         {busy && <div className="working" role="status"><span className="status-dot" /> Working through your request...</div>}
+        {busy && approval?.type === "approval" && <section className="approval" aria-label="Action approval">
+          <h3>Permission to create a file</h3><p>Review the exact path and content before approving.</p>
+          <pre>{JSON.stringify(approval.args, null, 2)}</pre>
+          <p className="small">Expires after 60 seconds. Existing files are never overwritten.</p>
+          <div className="approval-buttons"><button disabled={approvalBusy} onClick={() => { void decide(approval.id, false); }}>Deny</button>
+            <button className="send" disabled={approvalBusy} onClick={() => { void decide(approval.id, true); }}>Approve</button></div>
+        </section>}
         <div ref={end} />
       </section>
       <div className="composer-wrap">
@@ -240,13 +247,6 @@ function App() {
               ? <div className="trace" key={index}>{event.approved ? "APPROVED" : "DENIED / EXPIRED"}</div>
               : null)}
       </div>
-      {busy && approval?.type === "approval" && <section className="approval" aria-label="Action approval">
-        <h3>Permission to create a file</h3><p>Review the exact path and content before approving.</p>
-        <pre>{JSON.stringify(approval.args, null, 2)}</pre>
-        <p className="small">Expires after 60 seconds. Existing files are never overwritten.</p>
-        <div className="approval-buttons"><button disabled={approvalBusy} onClick={() => { void decide(approval.id, false); }}>Deny</button>
-          <button className="send" disabled={approvalBusy} onClick={() => { void decide(approval.id, true); }}>Approve</button></div>
-      </section>}
     </aside>
   </div>;
 }

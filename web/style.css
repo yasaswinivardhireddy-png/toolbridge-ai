@@ -61,9 +61,10 @@ textarea::placeholder { color: #a5a8b8; }
 summary { cursor: pointer; line-height: 1.7; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; font-size: 10px; line-height: 1.65; }
 .trace-error { color: #ffb6bf; }
-.approval { background: #292338; border: 1px solid #7964a6; border-radius: 10px; padding: 14px; margin-top: 20px; }
-.approval h3 { font-size: 13px; margin: 0; }
-.approval p { font-size: 11px; color: #c7bfd5; line-height: 1.6; }
+.approval { background: #292338; border: 1px solid #7964a6; border-radius: 12px; padding: 18px 20px; margin: 8px 0 20px; }
+.approval h3 { font-size: 15px; margin: 0; }
+.approval p { font-size: 12px; color: #c7bfd5; line-height: 1.6; }
+.approval pre { font-size: 12px; background: #1b1726; border-radius: 8px; padding: 12px; }
 .approval-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 .approval-buttons button:not(.send) { border: 1px solid #81718e; border-radius: 7px; background: none; padding: 8px 12px; font-size: 12px; }
 .error, .notice { border: 1px solid #835562; background: #2c1e27; color: #ffd1d7; padding: 11px; margin-bottom: 10px; border-radius: 8px; font-size: 12px; line-height: 1.6; }
