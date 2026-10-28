@@ -13,10 +13,19 @@ interface Config {
 const token = document.querySelector<HTMLMetaElement>('meta[name="toolbridge-token"]')?.content ?? "";
 
 async function api(url: string, init?: RequestInit): Promise<Response> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { "Content-Type": "application/json", "X-ToolBridge-Token": token, ...init?.headers }
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers: { "Content-Type": "application/json", "X-ToolBridge-Token": token, ...init?.headers }
+    });
+  } catch (error) {
+    if (init?.signal?.aborted) {
+      throw error;
+    }
+    // Browsers report an unreachable server only as a generic "Failed to fetch" TypeError.
+    throw new Error("Can't reach the ToolBridge server. Start it with npm start in the project folder, then reload this page.");
+  }
   if (!response.ok) {
     const data = await response.json() as { error?: string };
     throw new Error(data.error ?? `Request failed (${response.status}).`);
